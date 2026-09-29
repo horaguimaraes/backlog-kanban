@@ -1,0 +1,13 @@
+{
+  "name": "backlog-kanban",
+  "version": "1.0.0",
+  "description": "Single-file kanban board for team backlogs. Works offline, optional SharePoint sync.",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

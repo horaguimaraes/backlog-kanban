@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backlog Kanban</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e75b6'/%3E%3Crect x='6' y='7' width='5' height='18' rx='1.5' fill='%23fff'/%3E%3Crect x='13.5' y='7' width='5' height='12' rx='1.5' fill='%23fff'/%3E%3Crect x='21' y='7' width='5' height='8' rx='1.5' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f3f6f9; --panel:#e8edf2; --card:#fff; --fg:#0f2027; --muted:#5b6b76; --line:#d5dde4;
+  --accent:#0e75b6; --accent-fg:#fff; --danger:#c62828; --ok:#1b8a4b;
+  --p-low:#7f8c99; --p-medium:#0e75b6; --p-high:#e08a00; --p-urgent:#d32f2f;
+  --shadow:0 1px 2px rgba(15,32,39,.08),0 2px 8px rgba(15,32,39,.06);
+}
+:root[data-theme="dark"]{
+  --bg:#0d1419; --panel:#151f27; --card:#1d2a34; --fg:#e6edf2; --muted:#93a4b0; --line:#2a3945;
+  --accent:#38bdf8; --accent-fg:#06202e; --danger:#ef5350; --ok:#43c17a;
+  --p-low:#8b9aa6; --p-medium:#38bdf8; --p-high:#f5a524; --p-urgent:#ff6b6b;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;display:flex;flex-direction:column}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header{background:linear-gradient(135deg,#0F2027,#203A43 55%,#2C5364);color:#fff;padding:12px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+header h1{font-size:18px;margin:0 8px 0 0;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+header h1 svg{width:22px;height:22px}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+.btn.danger{color:var(--danger)}
+.btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
+.btn.ghost:hover{background:rgba(255,255,255,.12)}
+.btn.small{padding:2px 8px;font-size:12px}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 20px;border-bottom:1px solid var(--line);background:var(--card)}
+.toolbar input[type=search],.toolbar select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.toolbar input[type=search]{min-width:200px}
+.toolbar label.check{display:flex;gap:6px;align-items:center;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--bg);padding:6px 12px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);font-weight:600}
+
+.stats{display:flex;gap:18px;flex-wrap:wrap;padding:8px 20px;color:var(--muted);font-size:13px}
+.stats b{color:var(--fg)}
+.stats .over b{color:var(--danger)}
+.progress{height:6px;background:var(--panel);border-radius:6px;overflow:hidden;width:120px;align-self:center}
+.progress i{display:block;height:100%;background:var(--ok)}
+
+main{flex:1;overflow:auto;padding:0 20px 24px}
+.lane{margin-bottom:22px}
+.lane-title{display:flex;align-items:center;gap:8px;margin:14px 0 8px;font-weight:600}
+.board{display:grid;grid-template-columns:repeat(5,minmax(230px,1fr));gap:12px;min-width:1100px}
+.col{background:var(--panel);border-radius:12px;display:flex;flex-direction:column;min-height:160px}
+.col-head{display:flex;align-items:center;gap:8px;padding:10px 12px 6px;font-weight:600}
+.col-head .count{background:var(--card);border-radius:999px;padding:0 8px;font-size:12px;color:var(--muted);border:1px solid var(--line)}
+.col-head .add{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:18px;line-height:1;border-radius:6px;padding:0 6px}
+.col-head .add:hover{color:var(--accent);background:var(--card)}
+.col-body{flex:1;padding:4px 8px 10px;display:flex;flex-direction:column;gap:8px;min-height:80px;border-radius:12px}
+.col-body.over{outline:2px dashed var(--accent);outline-offset:-4px}
+.empty{color:var(--muted);text-align:center;font-size:12px;padding:14px 0;opacity:.8}
+
+.card{background:var(--card);border-radius:10px;padding:10px 12px;box-shadow:var(--shadow);border-left:4px solid var(--p-medium);cursor:grab;position:relative}
+.card[data-priority="low"]{border-left-color:var(--p-low)}
+.card[data-priority="high"]{border-left-color:var(--p-high)}
+.card[data-priority="urgent"]{border-left-color:var(--p-urgent)}
+.card.dragging{opacity:.4}
+.card.drop-before::before{content:"";position:absolute;left:0;right:0;top:-6px;height:3px;background:var(--accent);border-radius:3px}
+.card .title{font-weight:600;word-break:break-word}
+.card .desc{color:var(--muted);font-size:12.5px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.chip{font-size:11.5px;border-radius:999px;padding:1px 8px;background:var(--panel);color:var(--muted);border:1px solid var(--line)}
+.chip.prio{color:var(--p-medium);border-color:currentColor;background:transparent;text-transform:capitalize}
+.card[data-priority="low"] .chip.prio{color:var(--p-low)}
+.card[data-priority="high"] .chip.prio{color:var(--p-high)}
+.card[data-priority="urgent"] .chip.prio{color:var(--p-urgent)}
+.chip.due.overdue{color:var(--danger);border-color:var(--danger);font-weight:600}
+.avatar{margin-left:auto;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff}
+.card .moves{position:absolute;top:6px;right:6px;display:none;gap:2px}
+.card:hover .moves,.card:focus-within .moves{display:flex}
+.card .moves button{border:1px solid var(--line);background:var(--card);border-radius:6px;width:22px;height:22px;padding:0;line-height:1}
+
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--fg);padding:0;width:min(520px,94vw);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(6,16,22,.55)}
+dialog form{padding:18px 20px;display:grid;gap:12px}
+dialog h2{margin:0;font-size:17px}
+dialog label{display:grid;gap:4px;color:var(--muted);font-size:12.5px}
+dialog input,dialog select,dialog textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--fg)}
+dialog textarea{min-height:84px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+.actions .left{margin-right:auto}
+.note{font-size:12.5px;color:var(--muted);margin:0}
+.status{font-size:12.5px;min-height:1.2em}
+.status.err{color:var(--danger)}.status.ok{color:var(--ok)}
+
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#0F2027;color:#fff;padding:10px 14px;border-radius:10px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 30px rgba(0,0,0,.4);z-index:50}
+.toast button{background:transparent;border:0;color:#7dd3fc;font-weight:600}
+[hidden]{display:none!important}
+@media (max-width:760px){.board{min-width:0;grid-template-columns:1fr}header{padding:10px 14px}.toolbar,.stats{padding-left:14px;padding-right:14px}main{padding:0 14px 20px}}
+@media print{header,.toolbar,.col-head .add,.moves{display:none!important}.board{min-width:0}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#38bdf8"/><rect x="6" y="7" width="5" height="18" rx="1.5" fill="#0F2027"/><rect x="13.5" y="7" width="5" height="12" rx="1.5" fill="#0F2027"/><rect x="21" y="7" width="5" height="8" rx="1.5" fill="#0F2027"/></svg>
+    Backlog Kanban
+  </h1>
+  <span class="spacer"></span>
+  <button class="btn ghost" id="btn-export" title="Download all tasks as JSON">Export</button>
+  <button class="btn ghost" id="btn-import" title="Load tasks from a JSON file">Import</button>
+  <button class="btn ghost" id="btn-settings" title="SharePoint sync and data options">Settings</button>
+  <button class="btn ghost" id="btn-theme" title="Toggle light/dark theme" aria-label="Toggle theme">◐</button>
+  <button class="btn primary" id="btn-new">+ New task <small style="opacity:.7">(N)</small></button>
+  <input type="file" id="file-import" accept="application/json,.json" hidden>
+</header>
+
+<div class="toolbar" role="search">
+  <input type="search" id="f-query" placeholder="Search tasks…  ( / )" aria-label="Search tasks">
+  <select id="f-owner" aria-label="Filter by owner"></select>
+  <select id="f-priority" aria-label="Filter by priority"></select>
+  <select id="f-label" aria-label="Filter by label"></select>
+  <label class="check"><input type="checkbox" id="f-overdue"> Overdue only</label>
+  <label class="check"><input type="checkbox" id="f-hidedone"> Hide done</label>
+  <span class="spacer"></span>
+  <div class="seg" role="group" aria-label="View">
+    <button id="v-board" aria-pressed="true">Board</button>
+    <button id="v-owner" aria-pressed="false">By owner</button>
+  </div>
+  <button class="btn small" id="btn-clear-filters">Clear filters</button>
+</div>
+
+<div class="stats" id="stats" aria-live="polite"></div>
+<main id="main"></main>
+
+<dialog id="dlg-task">
+  <form id="task-form" method="dialog">
+    <h2 id="task-dlg-title">New task</h2>
+    <label>Title <input id="t-title" required maxlength="200" autocomplete="off"></label>
+    <label>Description <textarea id="t-desc" maxlength="4000"></textarea></label>
+    <div class="row">
+      <label>Owner <input id="t-owner" list="owner-list" maxlength="80" autocomplete="off" placeholder="Unassigned"><datalist id="owner-list"></datalist></label>
+      <label>Due date <input id="t-due" type="date"></label>
+    </div>
+    <div class="row">
+      <label>Priority <select id="t-priority"></select></label>
+      <label>Status <select id="t-status"></select></label>
+    </div>
+    <label>Labels <input id="t-labels" placeholder="comma, separated" autocomplete="off"></label>
+    <div class="actions">
+      <button type="button" class="btn danger left" id="t-delete">Delete</button>
+      <button type="button" class="btn" id="t-cancel">Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-settings">
+  <form id="settings-form" method="dialog">
+    <h2>Settings</h2>
+    <p class="note">Data lives in this browser (localStorage) and works fully offline. SharePoint sync is optional.</p>
+    <label>SharePoint site URL <input id="s-site" placeholder="https://contoso.sharepoint.com/sites/team" autocomplete="off"></label>
+    <label>List name <input id="s-list" placeholder="BacklogTasks" autocomplete="off"></label>
+    <p class="note">Sync only works when this page is opened from the same SharePoint site (same origin, so your session is reused). See the README for the list columns.</p>
+    <div class="actions" style="justify-content:flex-start;flex-wrap:wrap">
+      <button type="button" class="btn" id="s-pull">Pull from SharePoint</button>
+      <button type="button" class="btn" id="s-push">Push to SharePoint</button>
+    </div>
+    <div class="status" id="s-status" role="status"></div>
+    <hr style="border:0;border-top:1px solid var(--line);width:100%">
+    <div class="actions" style="justify-content:flex-start;flex-wrap:wrap">
+      <button type="button" class="btn" id="s-csv">Export CSV</button>
+      <button type="button" class="btn" id="s-demo">Load demo data</button>
+      <button type="button" class="btn danger" id="s-clear">Delete all tasks</button>
+      <span class="spacer"></span>
+      <button type="submit" class="btn primary">Done</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" hidden role="status"><span id="toast-msg"></span><button id="toast-undo" hidden>Undo</button></div>
+
+<!-- ============ Pure logic: no DOM, unit-tested with `npm test` ============ -->
+<script id="core">
+const Core = (() => {
+  'use strict';
+
+  const COLUMNS = [
+    { id: 'backlog', name: 'Backlog' },
+    { id: 'todo', name: 'To do' },
+    { id: 'doing', name: 'In progress' },
+    { id: 'review', name: 'Review' },
+    { id: 'done', name: 'Done' },
+  ];
+  const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+  const DONE = 'done';
+  const UNASSIGNED = '__none__';
+
+  const fold = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  const nowISO = () => new Date().toISOString();
+
+  function todayISO(d = new Date()) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  function isValidDate(s) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s || '')) return false;
+    const d = new Date(s + 'T00:00:00Z');
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }
+
+  function parseLabels(input) {
+    const raw = Array.isArray(input) ? input : String(input ?? '').split(/[,;]/);
+    const seen = new Set();
+    const out = [];
+    for (const item of raw) {
+      const label = String(item).trim();
+      const key = label.toLowerCase();
+      if (label && !seen.has(key)) { seen.add(key); out.push(label); }
+    }
+    return out;
+  }
+
+  function normalizeTask(raw, columns = COLUMNS) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const ids = columns.map((c) => c.id);
+    const now = nowISO();
+    return {
+      id: typeof r.id === 'string' && r.id ? r.id : uid(),
+      title: String(r.title ?? '').trim().slice(0, 200) || 'Untitled',
+      description: String(r.description ?? '').slice(0, 4000),
+      owner: String(r.owner ?? '').trim().slice(0, 80),
+      priority: PRIORITIES.includes(r.priority) ? r.priority : 'medium',
+      status: ids.includes(r.status) ? r.status : ids[0],
+      labels: parseLabels(r.labels),
+      due: isValidDate(r.due) ? r.due : '',
+      createdAt: r.createdAt || now,
+      updatedAt: r.updatedAt || now,
+    };
+  }
+
+  /** Accepts an array of tasks or { tasks: [...] }. Never throws on bad input. */
+  function importTasks(json, columns = COLUMNS) {
+    const list = Array.isArray(json) ? json : json && Array.isArray(json.tasks) ? json.tasks : null;
+    if (!list) throw new Error('File must contain a list of tasks');
+    const seen = new Set();
+    return list.map((t) => {
+      const task = normalizeTask(t, columns);
+      while (seen.has(task.id)) task.id = uid();
+      seen.add(task.id);
+      return task;
+    });
+  }
+
+  function filterTasks(tasks, f = {}) {
+    const q = fold(f.query).trim();
+    const today = f.today || todayISO();
+    return tasks.filter((t) => {
+      if (f.owner && f.owner !== 'all') {
+        if (f.owner === UNASSIGNED ? t.owner !== '' : t.owner !== f.owner) return false;
+      }
+      if (f.priority && f.priority !== 'all' && t.priority !== f.priority) return false;
+      if (f.label && f.label !== 'all' && !t.labels.some((l) => l.toLowerCase() === f.label.toLowerCase())) return false;
+      if (f.hideDone && t.status === DONE) return false;
+      if (f.overdueOnly && !isOverdue(t, today)) return false;
+      if (q) {
+        const hay = fold([t.title, t.description, t.owner, t.labels.join(' ')].join(' '));
+        if (!q.split(/\s+/).every((word) => hay.includes(word))) return false;
+      }
+      return true;
+    });
+  }
+
+  function isOverdue(task, today = todayISO()) {
+    return Boolean(task.due) && task.status !== DONE && task.due < today;
+  }
+
+  function daysBetween(a, b) {
+    return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+  }
+
+  function dueLabel(task, today = todayISO()) {
+    if (!task.due) return '';
+    const diff = daysBetween(today, task.due);
+    if (task.status === DONE) return task.due;
+    if (diff < 0) return `Overdue ${-diff}d`;
+    if (diff === 0) return 'Due today';
+    if (diff === 1) return 'Due tomorrow';
+    if (diff <= 7) return `Due in ${diff}d`;
+    return task.due;
+  }
+
+  /**
+   * Move a task to `status` (and optionally a new owner), placing it before
+   * `beforeId`, or at the end of that column. Returns a new array.
+   */
+  function moveTask(tasks, id, { status, owner, beforeId = null } = {}) {
+    const current = tasks.find((t) => t.id === id);
+    if (!current) return tasks;
+    const moved = {
+      ...current,
+      status: status ?? current.status,
+      owner: owner === undefined ? current.owner : owner,
+      updatedAt: nowISO(),
+    };
+    const rest = tasks.filter((t) => t.id !== id);
+    let index = -1;
+    if (beforeId === id) {
+      index = tasks.indexOf(current); // dropped onto itself: keep its place
+    } else if (beforeId) {
+      index = rest.findIndex((t) => t.id === beforeId);
+    }
+    if (index === -1) {
+      let last = -1;
+      rest.forEach((t, i) => { if (t.status === moved.status) last = i; });
+      index = last === -1 ? rest.length : last + 1;
+    }
+    rest.splice(index, 0, moved);
+    return rest;
+  }
+
+  /** Step a task one column left/right (keyboard and touch friendly). */
+  function shiftStatus(tasks, id, delta, columns = COLUMNS) {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return tasks;
+    const i = columns.findIndex((c) => c.id === task.status) + delta;
+    if (i < 0 || i >= columns.length) return tasks;
+    return moveTask(tasks, id, { status: columns[i].id });
+  }
+
+  function groupByStatus(tasks, columns = COLUMNS) {
+    const groups = Object.fromEntries(columns.map((c) => [c.id, []]));
+    for (const t of tasks) (groups[t.status] || (groups[t.status] = [])).push(t);
+    return groups;
+  }
+
+  function owners(tasks) {
+    return [...new Set(tasks.map((t) => t.owner).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  }
+  function allLabels(tasks) {
+    const map = new Map();
+    for (const t of tasks) for (const l of t.labels) if (!map.has(l.toLowerCase())) map.set(l.toLowerCase(), l);
+    return [...map.values()].sort((a, b) => a.localeCompare(b));
+  }
+
+  function computeStats(tasks, today = todayISO()) {
+    const done = tasks.filter((t) => t.status === DONE).length;
+    return {
+      total: tasks.length,
+      done,
+      inProgress: tasks.filter((t) => t.status === 'doing').length,
+      overdue: tasks.filter((t) => isOverdue(t, today)).length,
+      completion: tasks.length ? Math.round((done / tasks.length) * 100) : 0,
+    };
+  }
+
+  function initials(name) {
+    const parts = String(name).trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  }
+
+  function hueFor(name) {
+    let h = 0;
+    for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+    return h;
+  }
+
+  /** CSV export. Cells starting with = + - @ are prefixed to stop spreadsheet formula injection. */
+  function toCSV(tasks, columns = COLUMNS) {
+    const names = Object.fromEntries(columns.map((c) => [c.id, c.name]));
+    const cell = (v) => {
+      let s = String(v ?? '');
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const header = ['Title', 'Status', 'Priority', 'Owner', 'Due', 'Labels', 'Description'];
+    const lines = tasks.map((t) =>
+      [t.title, names[t.status] || t.status, t.priority, t.owner, t.due, t.labels.join('; '), t.description].map(cell).join(',')
+    );
+    return [header.join(','), ...lines].join('\r\n');
+  }
+
+  /* ---------- SharePoint (REST, list-based). Pure helpers; network code lives below. ---------- */
+
+  const odataString = (s) => String(s).replace(/'/g, "''");
+
+  function spUrls({ siteUrl, listName }) {
+    const site = String(siteUrl || '').replace(/\/+$/, '');
+    const list = `${site}/_api/web/lists/getbytitle('${encodeURIComponent(odataString(listName))}')`;
+    return {
+      items: `${list}/items?$select=Id,Title,TaskId,Description,Owner,Priority,Labels,DueDate,Status,SortOrder&$orderby=SortOrder asc&$top=5000`,
+      itemsBase: `${list}/items`,
+      digest: `${site}/_api/contextinfo`,
+    };
+  }
+
+  function spPayload(task, sortOrder) {
+    return {
+      Title: task.title,
+      TaskId: task.id,
+      Description: task.description,
+      Owner: task.owner,
+      Priority: task.priority,
+      Labels: task.labels.join(';'),
+      DueDate: task.due,
+      Status: task.status,
+      SortOrder: sortOrder,
+    };
+  }
+
+  function taskFromSp(item, columns = COLUMNS) {
+    return normalizeTask(
+      {
+        id: item.TaskId || `sp-${item.Id}`,
+        title: item.Title,
+        description: item.Description,
+        owner: item.Owner,
+        priority: item.Priority,
+        status: item.Status,
+        labels: item.Labels,
+        due: item.DueDate,
+      },
+      columns
+    );
+  }
+
+  /** Diff local tasks against remote list items -> what a "push" must create/update/delete. */
+  function planPush(local, remoteItems) {
+    const remoteByTask = new Map();
+    for (const item of remoteItems) remoteByTask.set(item.TaskId || `sp-${item.Id}`, item);
+    const plan = { create: [], update: [], remove: [] };
+    const localIds = new Set();
+    local.forEach((task, index) => {
+      localIds.add(task.id);
+      const payload = spPayload(task, index);
+      const remote = remoteByTask.get(task.id);
+      if (!remote) { plan.create.push(payload); return; }
+      const changed = Object.keys(payload).some((k) => String(remote[k] ?? '') !== String(payload[k] ?? ''));
+      if (changed) plan.update.push({ spId: remote.Id, payload });
+    });
+    for (const [taskId, item] of remoteByTask) if (!localIds.has(taskId)) plan.remove.push(item.Id);
+    return plan;
+  }
+
+  const SEED = () => {
+    const today = todayISO();
+    const shift = (n) => {
+      const d = new Date(); d.setDate(d.getDate() + n); return todayISO(d);
+    };
+    const t = (title, o) => normalizeTask({ title, ...o });
+    return [
+      t('Define Q4 roadmap themes', { status: 'backlog', priority: 'medium', owner: 'Ana Souza', labels: 'planning' }),
+      t('Audit unused dashboard filters', { status: 'backlog', priority: 'low', owner: 'Bruno Lima', labels: 'bi, cleanup' }),
+      t('Set up nightly data refresh', { status: 'todo', priority: 'high', owner: 'Carla Dias', due: shift(3), labels: 'data, automation', description: 'Schedule the refresh and alert the team on failures.' }),
+      t('Write onboarding guide', { status: 'todo', priority: 'medium', owner: 'Ana Souza', due: shift(10), labels: 'docs' }),
+      t('Fix wrong totals in sales report', { status: 'doing', priority: 'urgent', owner: 'Bruno Lima', due: shift(-2), labels: 'bug, bi', description: 'Totals double-count returned orders.' }),
+      t('Migrate reports to new workspace', { status: 'doing', priority: 'high', owner: 'Carla Dias', due: shift(5), labels: 'migration' }),
+      t('Review KPI definitions with finance', { status: 'review', priority: 'medium', owner: 'Ana Souza', due: today, labels: 'planning, bi' }),
+      t('Create weekly status template', { status: 'done', priority: 'low', owner: 'Bruno Lima', labels: 'docs' }),
+      t('Document data sources', { status: 'done', priority: 'medium', owner: 'Carla Dias', labels: 'docs, data' }),
+    ];
+  };
+
+  return {
+    COLUMNS, PRIORITIES, DONE, UNASSIGNED,
+    todayISO, isValidDate, parseLabels, normalizeTask, importTasks,
+    filterTasks, isOverdue, dueLabel, moveTask, shiftStatus, groupByStatus,
+    owners, allLabels, computeStats, initials, hueFor, toCSV,
+    spUrls, spPayload, taskFromSp, planPush, SEED, fold,
+  };
+})();
+if (typeof module !== 'undefined') module.exports = Core;
+</script>
+
+<!-- ============ UI ============ -->
+<script>
+(() => {
+  'use strict';
+  const { COLUMNS, PRIORITIES, UNASSIGNED } = Core;
+  const $ = (id) => document.getElementById(id);
+  const STORE = 'backlog-kanban.v1';
+
+  const state = {
+    tasks: [],
+    view: 'board',
+    filters: { query: '', owner: 'all', priority: 'all', label: 'all', overdueOnly: false, hideDone: false },
+    sp: { siteUrl: '', listName: '' },
+    theme: '',
+    editingId: null,
+    newStatus: null,
+  };
+
+  /* ---------- persistence (localStorage may be unavailable: never crash) ---------- */
+  function load() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
+      if (saved) {
+        state.tasks = Core.importTasks(saved.tasks || []);
+        state.sp = { ...state.sp, ...(saved.sp || {}) };
+        state.theme = saved.theme || '';
+        return;
+      }
+    } catch (_) { /* fall through to demo data */ }
+    state.tasks = Core.SEED();
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({ tasks: state.tasks, sp: state.sp, theme: state.theme }));
+    } catch (_) { /* private mode / quota: the board still works for this session */ }
+  }
+  function commit(tasks) { state.tasks = tasks; save(); render(); }
+
+  /* ---------- tiny DOM helper (text is always set via textContent, never innerHTML) ---------- */
+  function h(tag, attrs = {}, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === false || v == null) continue;
+      if (k === 'class') el.className = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else if (k === 'dataset') Object.assign(el.dataset, v);
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid);
+    return el;
+  }
+
+  /* ---------- toast with undo ---------- */
+  let toastTimer, undoFn = null;
+  function toast(message, undo) {
+    $('toast-msg').textContent = message;
+    undoFn = undo || null;
+    $('toast-undo').hidden = !undo;
+    $('toast').hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { $('toast').hidden = true; undoFn = null; }, 6000);
+  }
+  $('toast-undo').addEventListener('click', () => { if (undoFn) undoFn(); $('toast').hidden = true; undoFn = null; });
+
+  /* ---------- rendering ---------- */
+  function fillSelect(sel, options, value) {
+    sel.replaceChildren(...options.map(([v, label]) => h('option', { value: v }, label)));
+    sel.value = options.some(([v]) => v === value) ? value : options[0][0];
+  }
+
+  function renderFilters() {
+    const f = state.filters;
+    const owners = Core.owners(state.tasks);
+    const hasUnassigned = state.tasks.some((t) => !t.owner);
+    fillSelect($('f-owner'), [['all', 'All owners'], ...owners.map((o) => [o, o]), ...(hasUnassigned ? [[UNASSIGNED, 'Unassigned']] : [])], f.owner);
+    fillSelect($('f-priority'), [['all', 'All priorities'], ...PRIORITIES.map((p) => [p, p[0].toUpperCase() + p.slice(1)])], f.priority);
+    fillSelect($('f-label'), [['all', 'All labels'], ...Core.allLabels(state.tasks).map((l) => [l, l])], f.label);
+    f.owner = $('f-owner').value; f.priority = $('f-priority').value; f.label = $('f-label').value;
+    $('owner-list').replaceChildren(...owners.map((o) => h('option', { value: o })));
+  }
+
+  function renderStats(visible) {
+    const s = Core.computeStats(state.tasks);
+    const shown = visible.length === state.tasks.length ? '' : ` (${visible.length} shown)`;
+    $('stats').replaceChildren(
+      h('span', {}, h('b', {}, String(s.total)), ' tasks' + shown),
+      h('span', {}, h('b', {}, String(s.inProgress)), ' in progress'),
+      h('span', { class: 'over' }, h('b', {}, String(s.overdue)), ' overdue'),
+      h('span', {}, h('b', {}, s.completion + '%'), ' done'),
+      h('div', { class: 'progress', role: 'progressbar', 'aria-valuenow': s.completion, 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: `width:${s.completion}%` }))
+    );
+  }
+
+  function cardEl(task) {
+    const today = Core.todayISO();
+    const idx = COLUMNS.findIndex((c) => c.id === task.status);
+    const overdue = Core.isOverdue(task, today);
+    const due = Core.dueLabel(task, today);
+    const card = h('div', {
+      class: 'card', draggable: 'true', tabindex: '0', role: 'button',
+      'aria-label': `${task.title}. ${task.priority} priority. Press Enter to edit.`,
+      dataset: { id: task.id, priority: task.priority },
+    },
+      h('div', { class: 'moves' },
+        h('button', { title: 'Move left', 'aria-label': 'Move to previous column', disabled: idx === 0, onclick: (e) => { e.stopPropagation(); commit(Core.shiftStatus(state.tasks, task.id, -1)); } }, '‹'),
+        h('button', { title: 'Move right', 'aria-label': 'Move to next column', disabled: idx === COLUMNS.length - 1, onclick: (e) => { e.stopPropagation(); commit(Core.shiftStatus(state.tasks, task.id, 1)); } }, '›')
+      ),
+      h('div', { class: 'title' }, task.title),
+      task.description ? h('div', { class: 'desc' }, task.description) : null,
+      h('div', { class: 'meta' },
+        h('span', { class: 'chip prio' }, task.priority),
+        due ? h('span', { class: 'chip due' + (overdue ? ' overdue' : '') }, due) : null,
+        task.labels.map((l) => h('span', { class: 'chip' }, l)),
+        task.owner ? h('span', { class: 'avatar', title: task.owner, style: `background:hsl(${Core.hueFor(task.owner)} 55% 42%)` }, Core.initials(task.owner)) : null
+      )
+    );
+    card.addEventListener('click', () => openTask(task.id));
+    card.addEventListener('keydown', (e) => {
+      if (e.target !== card) return;
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTask(task.id); }
+    });
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', task.id);
+      e.dataTransfer.effectAllowed = 'move';
+      requestAnimationFrame(() => card.classList.add('dragging'));
+    });
+    card.addEventListener('dragend', () => { card.classList.remove('dragging'); clearDropMarks(); });
+    return card;
+  }
+
+  function boardEl(tasks, lane) {
+    const groups = Core.groupByStatus(tasks);
+    return h('div', { class: 'board' }, COLUMNS.map((col) => {
+      const list = groups[col.id] || [];
+      const body = h('div', { class: 'col-body', dataset: { status: col.id, owner: lane == null ? '' : lane, lane: lane == null ? '0' : '1' } },
+        list.length ? list.map(cardEl) : h('div', { class: 'empty' }, 'Drop tasks here'));
+      return h('section', { class: 'col', 'aria-label': col.name },
+        h('div', { class: 'col-head' },
+          h('span', {}, col.name), h('span', { class: 'count' }, String(list.length)),
+          h('button', { class: 'add', title: `Add task to ${col.name}`, 'aria-label': `Add task to ${col.name}`, onclick: () => openTask(null, col.id, lane && lane !== UNASSIGNED ? lane : '') }, '+')),
+        body);
+    }));
+  }
+
+  function render() {
+    renderFilters();
+    const visible = Core.filterTasks(state.tasks, state.filters);
+    renderStats(visible);
+    const main = $('main');
+    if (state.view === 'board') {
+      main.replaceChildren(boardEl(visible, null));
+    } else {
+      const lanes = [...Core.owners(visible), ...(visible.some((t) => !t.owner) ? [UNASSIGNED] : [])];
+      main.replaceChildren(...(lanes.length ? lanes : [UNASSIGNED]).map((lane) => {
+        const mine = visible.filter((t) => (lane === UNASSIGNED ? !t.owner : t.owner === lane));
+        return h('div', { class: 'lane' },
+          h('div', { class: 'lane-title' },
+            lane === UNASSIGNED ? null : h('span', { class: 'avatar', style: `margin:0;background:hsl(${Core.hueFor(lane)} 55% 42%)` }, Core.initials(lane)),
+            h('span', {}, lane === UNASSIGNED ? 'Unassigned' : lane), h('span', { class: 'chip' }, `${mine.length} tasks`)),
+          boardEl(mine, lane));
+      }));
+    }
+    $('v-board').setAttribute('aria-pressed', String(state.view === 'board'));
+    $('v-owner').setAttribute('aria-pressed', String(state.view === 'owner'));
+    document.documentElement.dataset.theme = state.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  }
+
+  /* ---------- drag and drop ---------- */
+  function clearDropMarks() {
+    document.querySelectorAll('.drop-before').forEach((el) => el.classList.remove('drop-before'));
+    document.querySelectorAll('.col-body.over').forEach((el) => el.classList.remove('over'));
+  }
+  function cardAfterPointer(body, y) {
+    const cards = [...body.querySelectorAll('.card:not(.dragging)')];
+    return cards.find((c) => { const r = c.getBoundingClientRect(); return y < r.top + r.height / 2; }) || null;
+  }
+  const main = $('main');
+  main.addEventListener('dragover', (e) => {
+    const body = e.target.closest('.col-body');
+    if (!body) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    clearDropMarks();
+    body.classList.add('over');
+    const before = cardAfterPointer(body, e.clientY);
+    if (before) before.classList.add('drop-before');
+  });
+  main.addEventListener('drop', (e) => {
+    const body = e.target.closest('.col-body');
+    if (!body) return;
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain');
+    const before = cardAfterPointer(body, e.clientY);
+    clearDropMarks();
+    const owner = body.dataset.lane === '1' ? (body.dataset.owner === UNASSIGNED ? '' : body.dataset.owner) : undefined;
+    commit(Core.moveTask(state.tasks, id, { status: body.dataset.status, owner, beforeId: before ? before.dataset.id : null }));
+  });
+
+  /* ---------- task dialog ---------- */
+  const dlg = $('dlg-task');
+  function openTask(id, status, owner) {
+    const task = id ? state.tasks.find((t) => t.id === id) : null;
+    state.editingId = id;
+    $('task-dlg-title').textContent = task ? 'Edit task' : 'New task';
+    fillSelect($('t-priority'), PRIORITIES.map((p) => [p, p[0].toUpperCase() + p.slice(1)]), task ? task.priority : 'medium');
+    fillSelect($('t-status'), COLUMNS.map((c) => [c.id, c.name]), task ? task.status : status || 'backlog');
+    $('t-title').value = task ? task.title : '';
+    $('t-desc').value = task ? task.description : '';
+    $('t-owner').value = task ? task.owner : owner || '';
+    $('t-due').value = task ? task.due : '';
+    $('t-labels').value = task ? task.labels.join(', ') : '';
+    $('t-delete').hidden = !task;
+    dlg.showModal();
+    $('t-title').focus();
+  }
+  $('task-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const title = $('t-title').value.trim();
+    if (!title) { $('t-title').focus(); return; }
+    const fields = {
+      title, description: $('t-desc').value, owner: $('t-owner').value, priority: $('t-priority').value,
+      status: $('t-status').value, labels: $('t-labels').value, due: $('t-due').value,
+    };
+    if (state.editingId) {
+      commit(state.tasks.map((t) => (t.id === state.editingId
+        ? Core.normalizeTask({ ...t, ...fields, updatedAt: new Date().toISOString() })
+        : t)));
+    } else {
+      commit([...state.tasks, Core.normalizeTask(fields)]);
+    }
+    dlg.close();
+  });
+  $('t-cancel').addEventListener('click', () => dlg.close());
+  $('t-delete').addEventListener('click', () => {
+    const before = state.tasks;
+    commit(state.tasks.filter((t) => t.id !== state.editingId));
+    dlg.close();
+    toast('Task deleted', () => commit(before));
+  });
+
+  /* ---------- toolbar ---------- */
+  const bindFilter = (id, key, prop = 'value') => $(id).addEventListener(prop === 'checked' ? 'change' : 'input', (e) => { state.filters[key] = e.target[prop]; render(); });
+  bindFilter('f-query', 'query'); bindFilter('f-owner', 'owner'); bindFilter('f-priority', 'priority');
+  bindFilter('f-label', 'label'); bindFilter('f-overdue', 'overdueOnly', 'checked'); bindFilter('f-hidedone', 'hideDone', 'checked');
+  $('btn-clear-filters').addEventListener('click', () => {
+    state.filters = { query: '', owner: 'all', priority: 'all', label: 'all', overdueOnly: false, hideDone: false };
+    $('f-query').value = ''; $('f-overdue').checked = false; $('f-hidedone').checked = false; render();
+  });
+  $('v-board').addEventListener('click', () => { state.view = 'board'; render(); });
+  $('v-owner').addEventListener('click', () => { state.view = 'owner'; render(); });
+  $('btn-new').addEventListener('click', () => openTask(null));
+  $('btn-theme').addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    state.theme = dark ? 'light' : 'dark'; save(); render();
+  });
+
+  /* ---------- export / import ---------- */
+  function download(name, text, type) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = h('a', { href: url, download: name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  $('btn-export').addEventListener('click', () => download(`backlog-${Core.todayISO()}.json`, JSON.stringify({ version: 1, tasks: state.tasks }, null, 2), 'application/json'));
+  $('btn-import').addEventListener('click', () => $('file-import').click());
+  $('file-import').addEventListener('change', async (e) => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    try {
+      const imported = Core.importTasks(JSON.parse(await file.text()));
+      const before = state.tasks;
+      commit(imported);
+      toast(`Imported ${imported.length} tasks`, () => commit(before));
+    } catch (err) { toast('Import failed: ' + err.message); }
+  });
+
+  /* ---------- settings + SharePoint ---------- */
+  const sdlg = $('dlg-settings');
+  const setStatus = (msg, cls = '') => { $('s-status').textContent = msg; $('s-status').className = 'status ' + cls; };
+  $('btn-settings').addEventListener('click', () => {
+    $('s-site').value = state.sp.siteUrl; $('s-list').value = state.sp.listName; setStatus('');
+    sdlg.showModal();
+  });
+  sdlg.addEventListener('close', () => { state.sp = { siteUrl: $('s-site').value.trim(), listName: $('s-list').value.trim() }; save(); });
+  $('s-csv').addEventListener('click', () => download(`backlog-${Core.todayISO()}.csv`, '﻿' + Core.toCSV(state.tasks), 'text/csv;charset=utf-8'));
+  $('s-demo').addEventListener('click', () => { const before = state.tasks; commit(Core.SEED()); sdlg.close(); toast('Demo data loaded', () => commit(before)); });
+  $('s-clear').addEventListener('click', () => { const before = state.tasks; commit([]); sdlg.close(); toast('All tasks deleted', () => commit(before)); });
+
+  const spCfg = () => {
+    const cfg = { siteUrl: $('s-site').value.trim(), listName: $('s-list').value.trim() };
+    if (!/^https:\/\//i.test(cfg.siteUrl) || !cfg.listName) throw new Error('Enter an https site URL and a list name first.');
+    if (location.origin !== new URL(cfg.siteUrl).origin) {
+      throw new Error(`Open this page from ${new URL(cfg.siteUrl).origin} to sync (browsers block cross-site requests).`);
+    }
+    return cfg;
+  };
+  const spFetch = async (url, options = {}) => {
+    const res = await fetch(url, { credentials: 'same-origin', ...options, headers: { Accept: 'application/json;odata=nometadata', ...(options.headers || {}) } });
+    if (!res.ok) throw new Error(`SharePoint returned ${res.status} ${res.statusText}`);
+    return res.status === 204 ? null : res.json();
+  };
+  async function spRead(urls) { return (await spFetch(urls.items)).value || []; }
+
+  $('s-pull').addEventListener('click', async () => {
+    try {
+      setStatus('Pulling…');
+      const items = await spRead(Core.spUrls(spCfg()));
+      const before = state.tasks;
+      commit(items.map((i) => Core.taskFromSp(i)));
+      setStatus(`Pulled ${items.length} tasks.`, 'ok');
+      toast('Replaced local tasks with SharePoint data', () => commit(before));
+    } catch (err) { setStatus(err.message, 'err'); }
+  });
+
+  $('s-push').addEventListener('click', async () => {
+    try {
+      const urls = Core.spUrls(spCfg());
+      setStatus('Reading remote list…');
+      const remote = await spRead(urls);
+      const plan = Core.planPush(state.tasks, remote);
+      const total = plan.create.length + plan.update.length + plan.remove.length;
+      if (!total) { setStatus('Already in sync.', 'ok'); return; }
+      if (!confirm(`Push to SharePoint?\n\n${plan.create.length} to create, ${plan.update.length} to update, ${plan.remove.length} to delete.`)) { setStatus('Cancelled.'); return; }
+      const digest = (await spFetch(urls.digest, { method: 'POST' })).FormDigestValue;
+      const write = (url, body, extra = {}) => spFetch(url, {
+        method: 'POST', body: body && JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json;odata=nometadata', 'X-RequestDigest': digest, ...extra },
+      });
+      let done = 0;
+      for (const payload of plan.create) { await write(urls.itemsBase, payload); setStatus(`Working… ${++done}/${total}`); }
+      for (const { spId, payload } of plan.update) { await write(`${urls.itemsBase}(${spId})`, payload, { 'IF-MATCH': '*', 'X-HTTP-Method': 'MERGE' }); setStatus(`Working… ${++done}/${total}`); }
+      for (const spId of plan.remove) { await write(`${urls.itemsBase}(${spId})`, null, { 'IF-MATCH': '*', 'X-HTTP-Method': 'DELETE' }); setStatus(`Working… ${++done}/${total}`); }
+      setStatus(`Done: ${plan.create.length} created, ${plan.update.length} updated, ${plan.remove.length} deleted.`, 'ok');
+    } catch (err) { setStatus(err.message, 'err'); }
+  });
+
+  /* ---------- keyboard shortcuts ---------- */
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) || document.querySelector('dialog[open]');
+    if (typing) return;
+    if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openTask(null); }
+    if (e.key === '/') { e.preventDefault(); $('f-query').focus(); }
+  });
+
+  load();
+  render();
+})();
+</script>
+</body>
+</html>
